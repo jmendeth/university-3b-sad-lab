@@ -4,15 +4,20 @@ import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class EditableBufferedReader extends BufferedReader {
 
+    protected final Writer output;
+
     public EditableBufferedReader(Reader arg0) {
         super(arg0);
+        this.output = new OutputStreamWriter(System.out);
         resetState();
     }
 
@@ -207,15 +212,46 @@ public class EditableBufferedReader extends BufferedReader {
     protected boolean lineEntered;
     protected boolean eofPressed;
     protected List<String> lineContents;
+    protected boolean insertMode;
+    protected int caret;
+    protected int offsetX;
+    protected int offsetY;
+    protected int width;
+    protected int height;
 
     protected final void resetState() {
         interrupted = false;
         lineEntered = false;
         eofPressed = false;
         lineContents = new ArrayList<>();
+        insertMode = true;
+        caret = 0;
+        offsetX = 0;
+        offsetY = 0;
+        width = 20;
+        height = 1;
     }
 
     protected void handleCSI(String parameters, String function) {
+        if (function.equals("D") || function.equals("C")) { // left / right
+            int newCaret = caret + (function.equals("D") ? -1 : +1);
+            if (newCaret < 0) newCaret = 0;
+            if (newCaret > lineContents.size()) newCaret = lineContents.size();
+
+            if (caret != newCaret) {
+                caret = newCaret;
+                writeOutput("\u001B[" + function);
+            }
+        } else if (function.equals("H") || function.equals("F")) { // home / end
+            moveCaret(function.equals("H") ? 0 : lineContents.size(), true);
+        } else if (function.equals("~") && parameters.split(";")[0].equals("3")) { // delete
+            if (caret < lineContents.size()) {
+                lineContents.remove(caret);
+                writeOutput(setCursor(offsetX + caret) + insertColumns(-1));
+            }
+        } else if (function.equals("~") && parameters.equals("2")) { // insert
+            insertMode = !insertMode;
+        }
     }
 
     protected void handleSS(int set, char c) {
@@ -234,14 +270,76 @@ public class EditableBufferedReader extends BufferedReader {
             }
         } else if (c == 0x03) { // Control+C
             interrupted = true;
-        } else if (c == 0x08) { // Backspace
-
-        } else if (c == 0x7F) { // Delete
-
+        } else if (c == 0x08 || c == 0x7F) { // BS or DEL -> backspace
+            if (caret > 0) {
+                caret--;
+                if (insertMode) {
+                    lineContents.remove(caret);
+                    writeOutput(setCursor(offsetX + caret) + insertColumns(-1));
+                } else {
+                    writeOutput(setCursor(offsetX + caret));
+                }
+            }
         }
     }
 
     protected void handleCodepoint(int code) {
+        // (For now, assume each codepoint is a glyph)
+        // Render to screen
+        String out = "";
+        if (insertMode && caret < lineContents.size())
+            out += insertColumns(1);
+        out += fromCodepoint(code);
+        // Store glyph at caret position, increment caret
+        if (!insertMode && caret < lineContents.size())
+            lineContents.remove(caret);
+        lineContents.add(caret, fromCodepoint(code));
+        caret++;
+        // Position at the caret, to make sure
+        out += setCursor(offsetX + caret);
+        writeOutput(out);
+    }
+
+    protected void moveCaret(int newCaret, boolean force) {
+        if (caret != newCaret || force) {
+            caret = newCaret;
+            writeOutput(setCursor(offsetX + caret));
+        }
+    }
+
+
+    /**
+     * Terminal output / query functions.
+     */
+
+    protected static String setCursor(int x) {
+        return String.format("\u001b[%dG", x + 1);
+    }
+
+    protected static String insertColumns(int n) {
+        if (n == 0) return "";
+
+        char command = '@';
+        if (n < 0) {
+            command = 'P';
+            n = -n;
+        }
+        if (n == 1)
+            return String.format("\u001b[%c", command);
+        return String.format("\u001b[%d%c", n, command);
+    }
+
+    protected static String fromCodepoint(int code) {
+        return String.copyValueOf(Character.toChars(code));
+    }
+
+    protected void writeOutput(String out) {
+        try {
+            output.write(out);
+            output.flush();
+        } catch (IOException ex) {
+            throw new RuntimeException("IOException while flushing output:", ex);
+        }
     }
 
 
