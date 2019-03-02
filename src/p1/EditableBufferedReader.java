@@ -10,6 +10,8 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class EditableBufferedReader extends BufferedReader {
 
@@ -238,6 +240,9 @@ public class EditableBufferedReader extends BufferedReader {
         height = 1;
     }
 
+    private final static Pattern MOUSE_CSI_PATTERN =
+            Pattern.compile("^<?(\\d+);(\\d+);(\\d+)");
+
     protected void handleCSI(String parameters, String function) {
         if (function.equals("D") || function.equals("C")) { // left / right
             int newCaret = caret + (function.equals("D") ? -1 : +1);
@@ -257,6 +262,17 @@ public class EditableBufferedReader extends BufferedReader {
             }
         } else if (function.equals("~") && parameters.equals("2")) { // insert
             insertMode = !insertMode;
+        } else if (function.equals("M")) { // mouse
+            // FIXME: for backwards compatibility, parse X10-style CSIs
+            // which include 3 bytes *after* the CSI..
+            Matcher m = MOUSE_CSI_PATTERN.matcher(parameters);
+            if (m.matches()) {
+                int type = Integer.parseInt(m.group(1), 10),
+                        col = Integer.parseInt(m.group(2), 10),
+                        row = Integer.parseInt(m.group(3), 10);
+                if ((type == 32 || type == 0) && col >= 1 && row >= 1) // FIXME
+                    handleMousePress(col - 1, row - 1);
+            }
         }
     }
 
@@ -311,6 +327,17 @@ public class EditableBufferedReader extends BufferedReader {
             caret = newCaret;
             writeOutput(setCursor(offsetX + caret));
         }
+    }
+
+    protected void handleMousePress(int x, int y) {
+        // For now (since we don't know vertical position of the editor yet)
+        // simply move caret according to x
+        int newCaret = x - offsetX;
+        if (newCaret > lineContents.size())
+            newCaret = lineContents.size();
+        else if (newCaret < 0)
+            newCaret = 0;
+        moveCaret(newCaret, true);
     }
 
 
