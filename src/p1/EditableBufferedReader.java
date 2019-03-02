@@ -106,7 +106,7 @@ public class EditableBufferedReader extends BufferedReader {
         }
         // Call parsing function until it succeeds
         int consumed;
-        while ((consumed = parseInput(buffer, !bufferEnd)) == 0) {
+        while ((consumed = parseInput(buffer, !bufferEnd)) == -1) {
             if (bufferEnd)
                 throw new IllegalStateException("bufferEnd = true but input was NOT consumed");
             // Perform a read with timeout
@@ -119,6 +119,7 @@ public class EditableBufferedReader extends BufferedReader {
             }
         }
         // Consume bytes from buffer
+        assert(consumed > 0);
         buffer = buffer.substring(consumed);
     }
 
@@ -130,12 +131,12 @@ public class EditableBufferedReader extends BufferedReader {
      *
      * The length of the consumed input sequence must be returned, which is
      * expected to be > 0. If {@code more == true} (more bytes are available)
-     * the function can return 0 and it'll be called again with either more
+     * the function can return -1 and it'll be called again with either more
      * bytes at the buffer, or {@code more} set to false.
      *
      * @param str Terminal input buffer.
      * @param more Indicates if more bytes can be requested.
-     * @return Bytes consumed from the start of the buffer, or 0 if more bytes
+     * @return Bytes consumed from the start of the buffer, or -1 if more bytes
      * are needed (only if {@code more == true}).
      */
     protected int parseInput(final String str, final boolean more) {
@@ -144,7 +145,7 @@ public class EditableBufferedReader extends BufferedReader {
 
         // -> try to parse C1 first
         if (str.charAt(0) == 0x1B && (1 < str.length() || more)) {
-            if (1 >= str.length() && more) return 0;
+            if (1 >= str.length() && more) return -1;
 
             if (str.charAt(1) == '[') { // CSI
                 // parse parameter chars
@@ -154,14 +155,14 @@ public class EditableBufferedReader extends BufferedReader {
                 int intermediateStart = i;
                 while (i < str.length() && (str.charAt(i) & ~0xF) == 0x20) i++;
                 // parse final byte
-                if (i >= str.length() && more) return 0;
+                if (i >= str.length() && more) return -1;
                 if (i < str.length() && str.charAt(i) >= 0x40 && str.charAt(i) <= 0x7E) {
                     handleCSI(str.substring(paramStart, intermediateStart),
                             str.substring(intermediateStart, i + 1));
                     return i + 1;
                 }
             } else if (str.charAt(1) == 'N' || str.charAt(1) == 'O') { // SS2 / SS3
-                if (2 >= str.length() && more) return 0;
+                if (2 >= str.length() && more) return -1;
                 if (2 < str.length()) {
                     handleSS(str.charAt(1) == 'N' ? 2 : 3, str.charAt(2));
                     return 3;
@@ -188,7 +189,7 @@ public class EditableBufferedReader extends BufferedReader {
 
         if (Character.isSurrogate(str.charAt(0))) {
             if (Character.isHighSurrogate(str.charAt(0))) {
-                if (1 >= str.length() && more) return 0;
+                if (1 >= str.length() && more) return -1;
                 if (1 < str.length() && Character.isLowSurrogate(str.charAt(1))) {
                     handleCodepoint(str.codePointAt(0));
                     return 2;
