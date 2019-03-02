@@ -63,16 +63,21 @@ public class EditableBufferedReader extends BufferedReader {
     public String readLine() throws EOFException, InterruptedIOException, IOException {
         setRaw();
         try {
-            resetState();
-            buffer = "";
-            while (!lineEntered) {
-                if (interrupted) {
-                    interrupted = false;
-                    throw new InterruptedIOException();
+            enableMouse();
+            try {
+                resetState();
+                buffer = "";
+                while (!lineEntered) {
+                    if (interrupted) {
+                        interrupted = false;
+                        throw new InterruptedIOException();
+                    }
+                    processInput();
                 }
-                processInput();
+                return eofPressed ? null : String.join("", lineContents);
+            } finally {
+                disableMouse();
             }
-            return eofPressed ? null : String.join("", lineContents);
         } finally {
             unsetRaw();
         }
@@ -341,6 +346,16 @@ public class EditableBufferedReader extends BufferedReader {
         } catch (IOException ex) {
             throw new RuntimeException("IOException while flushing output:", ex);
         }
+    }
+
+    protected void enableMouse() {
+        // Enable mousepress-only reporting (9) with extension 1006.
+        // Extension 1015 is used as a fallback only.
+        writeOutput("\u001b[?9h" + "\u001b[?1015h" + "\u001b[?1006h");
+    }
+
+    protected void disableMouse() {
+        writeOutput("\u001b[?9l");
     }
 
 
