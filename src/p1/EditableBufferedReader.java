@@ -284,8 +284,8 @@ public class EditableBufferedReader extends BufferedReader {
     }
 
     protected void handleSS(int set, char c) {
-        if (set == 3 && (c == 'H' || c == 'F')) {
-            // Old terminals report numpad keys as SS3 controls instead of CSIs
+        // Old terminals send special keys as SS3 controls instead of CSIs
+        if (set == 3 && "ABCDHF".indexOf(c) != -1) {
             handleCSI("", String.valueOf(c));
         }
     }
