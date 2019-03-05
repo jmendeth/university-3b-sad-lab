@@ -76,7 +76,7 @@ public class EditableBufferedReader extends BufferedReader {
                     }
                     processInput();
                 }
-                return eofPressed ? null : String.join("", lineContents);
+                return eofPressed ? null : getLineString();
             } finally {
                 disableMouse();
             }
@@ -240,6 +240,13 @@ public class EditableBufferedReader extends BufferedReader {
         height = 1;
     }
 
+    private String getLineString() {
+        String result = "";
+        for (String glyph : lineContents)
+            result = result.concat(glyph);
+        return result;
+    }
+
     private final static Pattern MOUSE_CSI_PATTERN =
             Pattern.compile("^<?(\\d+);(\\d+);(\\d+)");
 
@@ -277,6 +284,10 @@ public class EditableBufferedReader extends BufferedReader {
     }
 
     protected void handleSS(int set, char c) {
+        if (set == 3 && (c == 'H' || c == 'F')) {
+            // Old terminals report numpad keys as SS3 controls instead of CSIs
+            handleCSI("", String.valueOf(c));
+        }
     }
 
     protected void handleTwoByte(char c) {
