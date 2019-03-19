@@ -17,40 +17,16 @@ public class EditableBufferedReader extends BufferedReader {
 
     protected final Writer output;
 
-    public EditableBufferedReader(Reader arg0) {
-        super(arg0);
+    public EditableBufferedReader(Reader input) {
+        super(input);
         this.output = new OutputStreamWriter(System.out);
-        resetState();
     }
 
-    protected static void executeStty(String... args) {
-        try {
-            List<String> command = new ArrayList<>(Arrays.asList(args));
-            command.add(0, "stty");
-            final Process pr = new ProcessBuilder(command)
-                    .redirectInput(ProcessBuilder.Redirect.INHERIT)
-                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                    .redirectError(ProcessBuilder.Redirect.INHERIT)
-                    .start();
-
-            final int status = pr.waitFor();
-            if (status != 0) {
-                throw new RuntimeException("stty failed with exit code " + status);
-            }
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed executing stty", ex);
-        } catch (InterruptedException ex) {
-            throw new RuntimeException("Interrupted while waiting for stty", ex);
-        }
-    }
-
-    public static void setRaw() {
-        executeStty("-echo", "raw");
-    }
-
-    public static void unsetRaw() {
-        executeStty("echo", "-raw");
-    }
+    protected boolean interrupted;
+    protected boolean lineEntered;
+    protected boolean eofPressed;
+    protected Line model;
+    protected Console view;
 
     /**
      * Entry method. Puts the terminal in raw mode, starts the line editor, and
@@ -65,20 +41,30 @@ public class EditableBufferedReader extends BufferedReader {
     public String readLine() throws EOFException, InterruptedIOException, IOException {
         setRaw();
         try {
-            enableMouse();
+            interrupted = false;
+            lineEntered = false;
+            eofPressed = false;
+            model = new Line(20, 3); // TODO
+            view = new Console(output, model, 4, 1);
+            model.addObserver(view);
+
+            view.enableMouse();
             try {
-                resetState();
-                buffer = "";
+
+                view.draw();
+                // buffer = "";
                 while (!lineEntered) {
-                    if (interrupted) {
-                        interrupted = false;
+                    if (interrupted)
                         throw new InterruptedIOException();
-                    }
                     processInput();
+                    view.draw();
                 }
-                return eofPressed ? null : getLineString();
+                model.moveCaret(model.getHeight(), 0);
+                output.write("\r\n");
+                return eofPressed ? null : model.getContents();
+
             } finally {
-                disableMouse();
+                view.disableMouse();
             }
         } finally {
             unsetRaw();
@@ -115,7 +101,7 @@ public class EditableBufferedReader extends BufferedReader {
         int consumed;
         while ((consumed = parseInput(buffer, !bufferEnd)) == -1) {
             if (bufferEnd)
-                throw new IllegalStateException("bufferEnd = true but input was NOT consumed");
+                throw new AssertionError("bufferEnd = true but input was NOT consumed");
             // Perform a read with timeout
             int c = (readTimeout != null) ? readWithTimeout(readTimeout) : read();
             if (c < 0) {
@@ -128,6 +114,22 @@ public class EditableBufferedReader extends BufferedReader {
         // Consume bytes from buffer
         assert(consumed > 0);
         buffer = buffer.substring(consumed);
+    }
+
+    /**
+     * Read the next character, with timeout.
+     *
+     * @param timeout Maximum time to wait for next character.
+     * @return The result from {@link #read()}, or -2 if timeout reached.
+     * @throws java.io.IOException
+     */
+    protected int readWithTimeout(int timeout) throws IOException {
+        // A little bit hacky, but it's what we have...
+        long current = System.currentTimeMillis();
+        do {
+            if (ready()) return read();
+        } while (timeout > 0 && System.currentTimeMillis() < current + timeout);
+        return -2;
     }
 
 
@@ -213,62 +215,24 @@ public class EditableBufferedReader extends BufferedReader {
 
 
     /**
-     * State and user interface. Handles input sequences and updates state and
-     * terminal.
+     * User interface. Handles input sequences and updates model or view.
      */
-    protected boolean interrupted;
-    protected boolean lineEntered;
-    protected boolean eofPressed;
-    protected List<String> lineContents;
-    protected boolean insertMode;
-    protected int caret;
-    protected int offsetX;
-    protected int offsetY;
-    protected int width;
-    protected int height;
-
-    protected final void resetState() {
-        interrupted = false;
-        lineEntered = false;
-        eofPressed = false;
-        lineContents = new ArrayList<>();
-        insertMode = true;
-        caret = 0;
-        offsetX = 0;
-        offsetY = 0;
-        width = 20;
-        height = 1;
-    }
-
-    private String getLineString() {
-        String result = "";
-        for (String glyph : lineContents)
-            result = result.concat(glyph);
-        return result;
-    }
 
     private final static Pattern MOUSE_CSI_PATTERN =
             Pattern.compile("^<?(\\d+);(\\d+);(\\d+)");
 
     protected void handleCSI(String parameters, String function) {
         if (function.equals("D") || function.equals("C")) { // left / right
-            int newCaret = caret + (function.equals("D") ? -1 : +1);
-            if (newCaret < 0) newCaret = 0;
-            if (newCaret > lineContents.size()) newCaret = lineContents.size();
-
-            if (caret != newCaret) {
-                caret = newCaret;
-                writeOutput("\u001B[" + function);
-            }
+            model.advanceCaret(function.equals("D") ? -1 : +1);
+        } else if (function.equals("A") || function.equals("B")) { // up / down
+            model.moveCaret(model.getRow() + (function.equals("A") ? -1 : +1), model.getColumn());
         } else if (function.equals("H") || function.equals("F")) { // home / end
-            moveCaret(function.equals("H") ? 0 : lineContents.size(), true);
+            int column = function.equals("H") ? 0 : model.getLines().get(model.getRow()).size();
+            model.moveCaret(model.getRow(), column);
         } else if (function.equals("~") && parameters.split(";")[0].equals("3")) { // delete
-            if (caret < lineContents.size()) {
-                lineContents.remove(caret);
-                writeOutput(setCursor(offsetX + caret) + insertColumns(-1));
-            }
+            model.delete();
         } else if (function.equals("~") && parameters.equals("2")) { // insert
-            insertMode = !insertMode;
+            model.setInsertMode(!model.getInsertMode());
         } else if (function.equals("M")) { // mouse
             // FIXME: for backwards compatibility, parse X10-style CSIs
             // which include 3 bytes *after* the CSI..
@@ -278,7 +242,7 @@ public class EditableBufferedReader extends BufferedReader {
                         col = Integer.parseInt(m.group(2), 10),
                         row = Integer.parseInt(m.group(3), 10);
                 if ((type == 32 || type == 0) && col >= 1 && row >= 1) // FIXME
-                    handleMousePress(col - 1, row - 1);
+                    handleMousePress(row, col);
             }
         }
     }
@@ -291,127 +255,67 @@ public class EditableBufferedReader extends BufferedReader {
     }
 
     protected void handleTwoByte(char c) {
+        if (c == '\r') {
+            model.enterLine();
+        }
     }
 
     protected void handleOneByte(char c) {
         if (c == '\r') { // Enter
             lineEntered = true;
         } else if (c == 0x04) { // Control+D
-            if (lineContents.isEmpty()) {
+            if (model.getLines().size() == 1 && model.getLines().get(0).isEmpty()) {
                 lineEntered = true;
                 eofPressed = true;
             }
         } else if (c == 0x03) { // Control+C
             interrupted = true;
         } else if (c == 0x08 || c == 0x7F) { // BS or DEL -> backspace
-            if (caret > 0) {
-                caret--;
-                if (insertMode) {
-                    lineContents.remove(caret);
-                    writeOutput(setCursor(offsetX + caret) + insertColumns(-1));
-                } else {
-                    writeOutput(setCursor(offsetX + caret));
-                }
-            }
+            model.backspace();
         }
     }
 
     protected void handleCodepoint(int code) {
         // (For now, assume each codepoint is a glyph)
-        // Render to screen
-        String out = "";
-        if (insertMode && caret < lineContents.size())
-            out += insertColumns(1);
-        out += fromCodepoint(code);
-        // Store glyph at caret position, increment caret
-        if (!insertMode && caret < lineContents.size())
-            lineContents.remove(caret);
-        lineContents.add(caret, fromCodepoint(code));
-        caret++;
-        // Position at the caret, to make sure
-        out += setCursor(offsetX + caret);
-        writeOutput(out);
+        model.enterGlyph(String.copyValueOf(Character.toChars(code)));
     }
 
-    protected void moveCaret(int newCaret, boolean force) {
-        if (caret != newCaret || force) {
-            caret = newCaret;
-            writeOutput(setCursor(offsetX + caret));
-        }
-    }
-
-    protected void handleMousePress(int x, int y) {
-        // For now (since we don't know vertical position of the editor yet)
-        // simply move caret according to x
-        int newCaret = x - offsetX;
-        if (newCaret > lineContents.size())
-            newCaret = lineContents.size();
-        else if (newCaret < 0)
-            newCaret = 0;
-        moveCaret(newCaret, true);
+    protected void handleMousePress(int row, int column) {
+        model.moveCaret(row - view.getStartRow(), column - view.getStartColumn());
     }
 
 
     /**
-     * Terminal output / query functions.
+     * Terminal mode change logic.
      */
 
-    protected static String setCursor(int x) {
-        return String.format("\u001b[%dG", x + 1);
-    }
-
-    protected static String insertColumns(int n) {
-        if (n == 0) return "";
-
-        char command = '@';
-        if (n < 0) {
-            command = 'P';
-            n = -n;
-        }
-        if (n == 1)
-            return String.format("\u001b[%c", command);
-        return String.format("\u001b[%d%c", n, command);
-    }
-
-    protected static String fromCodepoint(int code) {
-        return String.copyValueOf(Character.toChars(code));
-    }
-
-    protected void writeOutput(String out) {
+    protected static void executeStty(String... args) {
         try {
-            output.write(out);
-            output.flush();
+            List<String> command = new ArrayList<>(Arrays.asList(args));
+            command.add(0, "stty");
+            final Process pr = new ProcessBuilder(command)
+                    .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start();
+
+            final int status = pr.waitFor();
+            if (status != 0) {
+                throw new RuntimeException("stty failed with exit code " + status);
+            }
         } catch (IOException ex) {
-            throw new RuntimeException("IOException while flushing output:", ex);
+            throw new RuntimeException("Failed executing stty", ex);
+        } catch (InterruptedException ex) {
+            throw new RuntimeException("Interrupted while waiting for stty", ex);
         }
     }
 
-    protected void enableMouse() {
-        // Enable mousepress-only reporting (9) with extension 1006.
-        // Extension 1015 is used as a fallback only.
-        writeOutput("\u001b[?9h" + "\u001b[?1015h" + "\u001b[?1006h");
+    public static void setRaw() {
+        executeStty("-echo", "raw");
     }
 
-    protected void disableMouse() {
-        writeOutput("\u001b[?9l");
-    }
-
-
-
-    /**
-     * Read the next character, with timeout.
-     *
-     * @param timeout Maximum time to wait for next character.
-     * @return The result from {@link #read()}, or -2 if timeout reached.
-     * @throws java.io.IOException
-     */
-    protected int readWithTimeout(int timeout) throws IOException {
-        // A little bit hacky, but it's what we have...
-        long current = System.currentTimeMillis();
-        do {
-            if (ready()) return read();
-        } while (timeout > 0 && System.currentTimeMillis() < current + timeout);
-        return -2;
+    public static void unsetRaw() {
+        executeStty("echo", "-raw");
     }
 
 }
