@@ -22,13 +22,13 @@ import java.nio.channels.ServerSocketChannel;
  * @author Alba Mendez
  */
 public class MyServerSocket implements Closeable {
-    
+
     private final ServerSocket orig;
-    
+
     private MyServerSocket(ServerSocket orig) {
         this.orig = orig;
     }
-    
+
     // REEXPORTED METHODS
 
     /**
@@ -44,14 +44,14 @@ public class MyServerSocket implements Closeable {
     public MyServerSocket(int port) throws IOException {
         this(new ServerSocket(port));
     }
-    
+
     /**
      * @see ServerSocket#ServerSocket(int, int)
      */
     public MyServerSocket(int port, int backlog) throws IOException {
         this(new ServerSocket(port, backlog));
     }
-    
+
     /**
      * @see ServerSocket#ServerSocket(int, int, InetAddress)
      */
@@ -235,5 +235,5 @@ public class MyServerSocket implements Closeable {
     public void setPerformancePreferences(int connectionTime, int latency, int bandwidth) {
         orig.setPerformancePreferences(connectionTime, latency, bandwidth);
     }
-    
+
 }

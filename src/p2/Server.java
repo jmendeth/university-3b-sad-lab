@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 
 /**
  * Chat server.
+ *
  * @author Alba Mendez
  */
 public class Server implements Runnable {
@@ -19,7 +20,7 @@ public class Server implements Runnable {
             this.data = data;
         }
     }
-    
+
     private final MyServerSocket serverSocket;
     private final ConcurrentHashMap<String, Connection> peers = new ConcurrentHashMap<>();
 
@@ -30,7 +31,7 @@ public class Server implements Runnable {
             throw new RuntimeException("Couldn't bind to specified port");
         }
     }
-    
+
     private void broadcast(String origin, Message msg) {
         for (Entry<String, Connection> e : peers.entrySet()) {
             if (!e.getKey().equals(origin)) {
@@ -38,7 +39,7 @@ public class Server implements Runnable {
             }
         }
     }
-    
+
     @Override
     public void run() {
         try {
@@ -52,16 +53,16 @@ public class Server implements Runnable {
             serverSocket.close();
         }
     }
-    
+
     private class Connection implements Runnable {
-        
+
         MySocket socket;
         LinkedBlockingQueue<Message> sendQueue = new LinkedBlockingQueue<>();
 
         Connection(MySocket socket) {
             this.socket = socket;
         }
-        
+
         @Override
         public void run() {
             try {
@@ -75,18 +76,18 @@ public class Server implements Runnable {
                     socket.print("Error: Invalid characters in nickname\n");
                     return;
                 }
-                
+
                 // Register peer
                 if (peers.putIfAbsent(nick, this) != null) {
                     socket.print("Error: Nickname '" + nick + "' already in use\n");
                     return;
                 }
                 broadcast(nick, new Message("[" + nick + " joined the room]\n"));
-                
+
                 // Send participants (FIXME: not atomic)
                 String participants = String.join(", ", peers.keySet());
                 socket.print("[current participants: " + participants + "]\n");
-                
+
                 // Start sender thread
                 Thread sender = new Thread(new Runnable() {
                     public void run() {
@@ -94,17 +95,17 @@ public class Server implements Runnable {
                     }
                 });
                 sender.start();
-                
+
                 // Main loop until EOF
                 String line;
                 while ((line = socket.readLine()) != null) {
                     broadcast(nick, new Message(nick + ": " + line + "\n"));
                 }
-                
+
                 // Deregister peer
                 peers.remove(nick);
                 broadcast(nick, new Message("[" + nick + " left the room]\n"));
-                
+
                 // Send EOF to sender, and wait for it to end
                 sendQueue.add(new Message(null));
                 sender.join();
@@ -115,7 +116,7 @@ public class Server implements Runnable {
                 socket.close();
             }
         }
-        
+
         void sendThread() {
             try {
                 Message msg;
@@ -127,12 +128,12 @@ public class Server implements Runnable {
                         "Unexpected exception at connection sendThread", ex);
             }
         }
-        
+
     }
 
     public static void main(String[] args) {
         Server server = new Server(3500);
         server.run();
     }
-    
+
 }

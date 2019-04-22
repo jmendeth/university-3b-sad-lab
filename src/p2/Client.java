@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 
 /**
  * Chat client.
+ *
  * @author Alba Mendez
  */
 public class Client implements Runnable {
@@ -49,11 +50,12 @@ public class Client implements Runnable {
                 output.print("\033[1m> ");
                 output.flush();
                 String line = input.readLine();
-                if (line == null || line.equals(":q")) break;
+                if (line == null || line.equals(":q"))
+                    break;
                 if (line.length() > 0)
                     socket.print(line + "\n");
             }
-            
+
             // Send EOF to server, wait for receiver thread to finish
             ended = true;
             socket.shutdownOutput();
@@ -65,14 +67,14 @@ public class Client implements Runnable {
             socket.close();
         }
     }
-    
+
     public void receiveThread() {
         String line;
         while ((line = socket.readLine()) != null) {
             output.print("\033[s\033[m\n\033[A\033[L" + line + "\033[u\033[B\033[1m");
             output.flush();
         }
-        
+
         output.println("\n\033[mConnection ended by server.");
         if (!ended) {
             // Currently no good way to interrupt the main thread loop,
@@ -86,7 +88,7 @@ public class Client implements Runnable {
             System.err.println("Usage: client.js <hostname> [<port>]");
             System.exit(1);
         }
-        
+
         MySocket socket = null;
         try {
             socket = new MySocket(args[0], args.length > 1 ? Integer.parseInt(args[1]) : 3500);

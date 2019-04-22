@@ -30,19 +30,19 @@ import java.util.regex.Pattern;
  * @author Alba Mendez
  */
 public class MySocket implements Closeable {
-    
+
     private final Socket orig;
     private PrintStream send;
     private BufferedReader reader;
     private Scanner recv;
-    
+
     MySocket(Socket orig) throws IOException {
         this.orig = orig;
         reader = new BufferedReader(new InputStreamReader(orig.getInputStream()));
         recv = new Scanner(reader);
         send = new PrintStream(orig.getOutputStream());
     }
-    
+
     public String readLine() {
         try {
             return reader.readLine();
@@ -50,7 +50,7 @@ public class MySocket implements Closeable {
             throw new RuntimeException(ex);
         }
     }
-    
+
     public String next() {
         return recv.next();
     }
@@ -94,7 +94,7 @@ public class MySocket implements Closeable {
     public double nextDouble() {
         return recv.nextDouble();
     }
-    
+
     public char nextChar() {
         return recv.next(".").charAt(0);
     }
@@ -126,7 +126,7 @@ public class MySocket implements Closeable {
     public void print(String s) {
         send.print(s);
     }
-    
+
     // REEXPORTED METHODS
 
     /**
@@ -135,28 +135,28 @@ public class MySocket implements Closeable {
     public MySocket(String host, int port) throws UnknownHostException, IOException {
         this(new Socket(host, port));
     }
-    
+
     /**
      * @see Socket#Socket(InetAddress, int)
      */
     public MySocket(InetAddress address, int port) throws IOException {
         this(new Socket(address, port));
     }
-    
+
     /**
      * @see Socket#Socket(String, int, InetAddress, int)
      */
     public MySocket(String host, int port, InetAddress localAddr, int localPort) throws IOException {
         this(new Socket(host, port, localAddr, localPort));
     }
-        
+
     /**
      * @see Socket#Socket(InetAddress, int, InetAddress, int)
      */
     public MySocket(InetAddress address, int port, InetAddress localAddr, int localPort) throws IOException {
         this(new Socket(address, port, localAddr, localPort));
     }
-    
+
     /**
      * @see Socket#Socket(String, int, boolean)
      */
@@ -534,5 +534,5 @@ public class MySocket implements Closeable {
     public void setPerformancePreferences(int connectionTime, int latency, int bandwidth) {
         orig.setPerformancePreferences(connectionTime, latency, bandwidth);
     }
-    
+
 }
