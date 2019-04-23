@@ -1,12 +1,7 @@
 package p2;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.SocketAddress;
-import java.net.SocketException;
-import java.net.SocketImplFactory;
+import java.io.*;
+import java.net.*;
 import java.nio.channels.ServerSocketChannel;
 
 /**
