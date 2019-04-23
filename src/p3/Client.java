@@ -47,18 +47,11 @@ public class Client {
     private JTextField messageField;
     private JEditorPane messagesPane;
     private boolean scrollToBottom;
-
-    private HTMLDocument messagesDoc;
-    private Element messagesElem;
     
     private void initUI() {
-        // FIXME: don't use open sans directly
-        // FIXME: intantiate fillers correctly
-        // FIXME: enable button when nickname is filled
-        
         // CONNECTION PANEL
 
-        JPanel connectionFormPanel = new JPanel(new GridLayout(4, 2));
+        JPanel connectionFormPanel = new JPanel(new GridLayout(3, 2));
 
         ActionListener connectAction = new ActionListener() {
             public void actionPerformed(ActionEvent evt) {
@@ -100,18 +93,21 @@ public class Client {
         connectionFormPanel.add(portLabel);
         connectionFormPanel.add(portField);
 
+        JPanel connectionActionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        
         connectButton = new JButton();
-        connectButton.setFont(new Font("Open Sans", 0, 14));
+        connectButton.setFont(connectButton.getFont().deriveFont(14f));
         connectButton.setIcon(new ImageIcon(getClass().getResource("/p3/assets/connect.png")));
         connectButton.setText("Connect");
         connectButton.addActionListener(connectAction);
-        connectionFormPanel.add(connectButton);
+        connectionActionPanel.add(connectButton);
 
-        JPanel connectionPanel = new JPanel();
-        connectionPanel.setLayout(new BoxLayout(connectionPanel, BoxLayout.PAGE_AXIS));
-        connectionPanel.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 31333), new Dimension(0, 32767)));
-        connectionPanel.add(connectionFormPanel);
-        connectionPanel.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 31333), new Dimension(0, 31333)));
+        JPanel connectionContentPanel = new JPanel(new BorderLayout());
+        connectionContentPanel.add(connectionFormPanel, BorderLayout.CENTER);
+        connectionContentPanel.add(connectionActionPanel, BorderLayout.SOUTH);
+        
+        JPanel connectionPanel = new JPanel(new GridBagLayout());
+        connectionPanel.add(connectionContentPanel);
 
         // CHAT PANEL
 
@@ -136,7 +132,7 @@ public class Client {
         usersPanel.add(usersLabel, BorderLayout.PAGE_START);
 
         chatPanel.add(usersPanel);
-        chatPanel.add(new Box.Filler(new Dimension(10, 0), new Dimension(10, 0), new Dimension(10, 32767)));
+        chatPanel.add(Box.createHorizontalStrut(10));
 
         JPanel messagePanel = new JPanel(new BorderLayout(0, 2));
         messagePanel.setMinimumSize(new Dimension(200, 200));
@@ -169,7 +165,7 @@ public class Client {
         JPanel sendPanel = new JPanel(new BorderLayout());
 
         messageField = new JTextField();
-        messageField.setFont(new Font("Open Sans", 0, 13));
+        messageField.setFont(messageField.getFont().deriveFont(13f));
         messageField.setMargin(new Insets(4, 4, 4, 4));
         messageField.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -289,28 +285,16 @@ public class Client {
             statusLabel.setIcon(new ImageIcon(getClass().getResource("/p3/assets/server-ok.png")));
             statusLabel.setText("Connected to " + hostname + ":" + port);
         }
-        
+
+        // FIXME: enable button when nickname is filled
         boolean enabled = !isActive();
         for (Component c : new Component[]{ hostnameField, portField, nicknameField, connectButton })
             c.setEnabled(enabled);
         disconnectMenuItem.setEnabled(isActive());
     }
 
-    public static String escapeHTML(String s) {
-        // By Bruno Eberhard - https://stackoverflow.com/a/25228492/710951
-        StringBuilder out = new StringBuilder(Math.max(16, s.length()));
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c > 127 || c == '"' || c == '<' || c == '>' || c == '&') {
-                out.append("&#");
-                out.append((int) c);
-                out.append(';');
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
-    }
+    private HTMLDocument messagesDoc;
+    private Element messagesElem;
 
     private void appendMessage(String nick, String content) {
         StringBuilder bf = new StringBuilder();
@@ -322,7 +306,6 @@ public class Client {
         } catch (BadLocationException | IOException ex) {
             throw new RuntimeException(ex);
         }
-        System.out.println(messagesPane.getText());
     }
     
     private void appendNotification(String content) {
@@ -555,6 +538,22 @@ public class Client {
                 client.frame.setVisible(true);
             }
         });
+    }
+
+    public static String escapeHTML(String s) {
+        // By Bruno Eberhard - https://stackoverflow.com/a/25228492/710951
+        StringBuilder out = new StringBuilder(Math.max(16, s.length()));
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c > 127 || c == '"' || c == '<' || c == '>' || c == '&') {
+                out.append("&#");
+                out.append((int) c);
+                out.append(';');
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
     
 }
