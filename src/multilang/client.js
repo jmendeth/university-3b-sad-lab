@@ -7,7 +7,7 @@ if (args.length < 1 || args.length > 2) {
   process.exit(1)
 }
 
-const input = process.stdin, output = process.stdout, terminal = false
+const input = process.stdin, output = process.stdout, terminal = true
 const socket = net.connect(args[1] || 3500, args[0])
 socket.on('connect', () => {
   const rl = readline.createInterface({

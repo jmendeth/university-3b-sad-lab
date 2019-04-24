@@ -3,6 +3,7 @@ package p2;
 import java.io.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import p1.EditableBufferedReader;
 
 /**
  * Chat client.
@@ -12,11 +13,11 @@ import java.util.logging.Logger;
 public class Client implements Runnable {
 
     private final MySocket socket;
-    private final BufferedReader input;
+    private final EditableBufferedReader input;
     private final PrintStream output;
     private volatile boolean ended = false;
 
-    public Client(MySocket socket, BufferedReader input, PrintStream output) {
+    public Client(MySocket socket, EditableBufferedReader input, PrintStream output) {
         this.socket = socket;
         this.input = input;
         this.output = output;
@@ -95,7 +96,7 @@ public class Client implements Runnable {
         }
         System.out.println("Connected to server.");
 
-        BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
+        EditableBufferedReader input = new EditableBufferedReader(new InputStreamReader(System.in));
         Client client = new Client(socket, input, System.out);
         client.run();
     }
