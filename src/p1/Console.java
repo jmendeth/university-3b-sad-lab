@@ -51,7 +51,7 @@ public class Console implements Observer {
     @Override
     public void update(Observable obs, Object event) {
         if (obs != editor) return;
-        
+
         draw(); // TODO
     }
 

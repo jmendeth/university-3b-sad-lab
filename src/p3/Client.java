@@ -20,18 +20,18 @@ public class Client {
     public Client() {
         initUI();
     }
-    
+
     // UI
-    
+
     private static final String CARD_CONNECT = "connect";
     private static final String CARD_CHAT = "chat";
-    
+
     private static final String ABOUT_TEXT =
             "Chat client v1.0.0-pre\n" +
             "\n" +
             "SAD, QP2018\n" +
             "Alba Mendez";
-        
+
     private JFrame frame;
     private JPanel mainPanel;
     private JLabel statusLabel;
@@ -47,7 +47,7 @@ public class Client {
     private JTextField messageField;
     private JEditorPane messagesPane;
     private boolean scrollToBottom;
-    
+
     private void initUI() {
         // CONNECTION PANEL
 
@@ -86,7 +86,7 @@ public class Client {
         portField.setFormatterFactory(new DefaultFormatterFactory(new NumberFormatter(new DecimalFormat("#0"))));
         portField.setText("3500");
         portField.addActionListener(connectAction);
-        
+
         JLabel portLabel = new JLabel();
         portLabel.setLabelFor(portField);
         portLabel.setText("Port:");
@@ -94,7 +94,7 @@ public class Client {
         connectionFormPanel.add(portField);
 
         JPanel connectionActionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        
+
         connectButton = new JButton();
         connectButton.setFont(connectButton.getFont().deriveFont(14f));
         connectButton.setIcon(new ImageIcon(getClass().getResource("/p3/assets/connect.png")));
@@ -105,7 +105,7 @@ public class Client {
         JPanel connectionContentPanel = new JPanel(new BorderLayout());
         connectionContentPanel.add(connectionFormPanel, BorderLayout.CENTER);
         connectionContentPanel.add(connectionActionPanel, BorderLayout.SOUTH);
-        
+
         JPanel connectionPanel = new JPanel(new GridBagLayout());
         connectionPanel.add(connectionContentPanel);
 
@@ -200,7 +200,7 @@ public class Client {
         statusPanel.add(statusLabel, BorderLayout.CENTER);
 
         // MENUS
-        
+
         JMenuBar menuBar = new JMenuBar();
 
         JMenu fileMenu = new JMenu();
@@ -263,11 +263,11 @@ public class Client {
         });
 
         frame.pack();
-        
+
         renderStatus();
         resetMessages();
     }
-    
+
     private void renderStatus() {
         if (!isActive()) {
             statusLabel.setIcon(new ImageIcon(getClass().getResource("/p3/assets/server-error.png")));
@@ -307,7 +307,7 @@ public class Client {
             throw new RuntimeException(ex);
         }
     }
-    
+
     private void appendNotification(String content) {
         StringBuilder bf = new StringBuilder();
         bf.append("<div class=\"notification\">").append(escapeHTML(content)).append("</div>");
@@ -317,21 +317,21 @@ public class Client {
             throw new RuntimeException(ex);
         }
     }
-    
+
     private void resetMessages() {
         messagesPane.setText("<html>\n  <head>\n<style type=\"text/css\">\n\nbody {\n  font-name: Roboto, 'Open Sans', Ubuntu, sans-serif;\n  font-size: 12px;\n  background-color: #ffffff;\n  color: #000000;\n  padding: 1px 3px;\n}\n.box {\n  padding-top: 1px;\n  padding-bottom: 1px;\n}\n.box .user {\n  font-weight: bold;\n  font-size: 10px;\n}\n.notification {\n  font-weight: normal;\n  text-align: center;\n  color: #555555;\n  font-size: 10px;\n  padding-top: 2px;\n  padding-bottom: 2px;\n}\n\n\n</style>\n  </head>\n  <body><div id=\"messages\">" + "<div class=\"notification\">You have joined the room</div></div>\n  </body>\n</html>\n");
         messagesDoc = (HTMLDocument) messagesPane.getDocument();
         messagesElem = messagesDoc.getElement("messages");
         scrollToBottom = true;
     }
-    
+
     public void start() {
         frame.setVisible(true);
         nicknameField.requestFocus();
     }
-    
+
     // UI CALLBACKS
-    
+
     private void exitApplication() {
         if (isActive() && socket != null) {
             int option = JOptionPane.showConfirmDialog(frame, "Do you want to exit the application?\nYou will be disconnected from the server.",
@@ -349,11 +349,11 @@ public class Client {
         }
         System.exit(0);
     }
-    
+
     private void about() {
         JOptionPane.showMessageDialog(frame, ABOUT_TEXT, "About", JOptionPane.PLAIN_MESSAGE);
     }
-    
+
     private void connect() {
         failReason = null;
         String hostname = hostnameField.getText();
@@ -362,7 +362,7 @@ public class Client {
         startConnection(hostname, port, nick);
         renderStatus();
     }
-    
+
     private void disconnect() {
         if (socket != null) {
             // FIXME: handle case where socket isn't connected yet
@@ -370,7 +370,7 @@ public class Client {
             ((CardLayout)(mainPanel.getLayout())).show(mainPanel, CARD_CONNECT);
         }
     }
-    
+
     private void sendMessage() {
         String line = messageField.getText();
         if (line.trim().length() > 0) {
@@ -380,12 +380,12 @@ public class Client {
         }
         messageField.setText("");
     }
-    
+
     // NETWORK CALLBACKS
-    
+
     private void connected(String[] participants) {
         renderStatus();
-        
+
         // Prepare users pane
         usersListModel.clear();
         for (String p : participants)
@@ -395,7 +395,7 @@ public class Client {
         ((CardLayout)(mainPanel.getLayout())).show(mainPanel, CARD_CHAT);
         messageField.requestFocus();
     }
-    
+
     private void receivedMessage(String line) {
         Matcher m;
         if ((m = PATTERN_JOINED.matcher(line)).matches()) {
@@ -409,23 +409,23 @@ public class Client {
             appendMessage(parts[0], parts[1]);
         }
     }
-    
+
     private void disconnected() {
         renderStatus();
         ((CardLayout)(mainPanel.getLayout())).show(mainPanel, CARD_CONNECT);
     }
 
     // NETWORK LOGIC
-    
+
     private Thread receiver;
     private MySocket socket;
     private String nick;
     private String failReason;
-    
+
     private boolean isActive() {
         return receiver != null && receiver.isAlive();
     }
-    
+
     private void startConnection(final String hostname, final int port, final String nick) {
         if (isActive())
             return;
@@ -437,16 +437,16 @@ public class Client {
         });
         receiver.start();
     }
-    
+
     // NETWORK THREAD
-    
+
     private final Pattern PATTERN_PARTICIPANTS =
             Pattern.compile("^\\[current participants: (.+)\\]$");
     private final Pattern PATTERN_JOINED =
             Pattern.compile("^\\[(.+) joined the room\\]$");
     private final Pattern PATTERN_LEFT =
             Pattern.compile("^\\[(.+) left the room\\]$");
-    
+
     private void networkThread(String hostname, int port, final String nick) {
         // Try to connect
         try (final MySocket socket = new MySocket(hostname, port)) {
@@ -455,13 +455,13 @@ public class Client {
             String line = socket.readLine();
             if (line == null)
                 throw new IOException("Connection closed unexpectedly");
-            
+
             // Read participants or error from server
             Matcher m;
             if (!(m = PATTERN_PARTICIPANTS.matcher(line)).matches())
                 throw new IOException(line);
             final String[] participants = m.group(1).split(", ");
-            
+
             // Send connected event
             EventQueue.invokeLater(new Runnable() {
                 public void run() {
@@ -470,7 +470,7 @@ public class Client {
                     connected(participants);
                 }
             });
-            
+
             // Main loop
             while ((line = socket.readLine()) != null) {
                 final String _line = line;
@@ -508,7 +508,7 @@ public class Client {
         }
         return false;
     }
-    
+
     public static boolean useNimbusLAF() {
         try {
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
@@ -522,7 +522,7 @@ public class Client {
         }
         return false;
     }
-    
+
     public static void main(String args[]) {
         // Try to set Nimbus look & feel
         if (!useSystemLAF()) {
@@ -530,7 +530,7 @@ public class Client {
                 System.out.println("Warning: Couldn't set LAF");
             }
         }
-        
+
         // Start the application
         EventQueue.invokeLater(new Runnable() {
             public void run() {
@@ -555,5 +555,5 @@ public class Client {
         }
         return out.toString();
     }
-    
+
 }
