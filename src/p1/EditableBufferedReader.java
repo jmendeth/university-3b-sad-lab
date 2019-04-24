@@ -78,10 +78,10 @@ public class EditableBufferedReader extends BufferedReader {
                     if (interrupted)
                         throw new InterruptedIOException();
                     processInput();
-                    view.draw();
+                    model.notifyObservers();
                 }
                 model.moveCaret(model.getHeight(), 0);
-                view.draw();
+                model.notifyObservers();
                 output.write("\r\n");
                 return eofPressed ? null : model.getContents();
 

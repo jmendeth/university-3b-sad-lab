@@ -107,6 +107,7 @@ public class Line extends Observable {
             lines.get(row).set(column, glyph);
         }
         column++;
+        setChanged();
         return true;
     }
 
@@ -120,6 +121,7 @@ public class Line extends Observable {
 
         row++;
         column = 0;
+        setChanged();
         return true;
     }
 
@@ -144,6 +146,7 @@ public class Line extends Observable {
         if (this.row == row && this.column == column) return false;
         this.row = row;
         this.column = column;
+        setChanged();
         return true;
     }
 
@@ -178,6 +181,7 @@ public class Line extends Observable {
         if (this.row == row && this.column == column) return false;
         this.row = row;
         this.column = column;
+        setChanged();
         return true;
     }
 
@@ -194,6 +198,7 @@ public class Line extends Observable {
             this.lines.get(row).addAll(this.lines.get(row+1));
             this.lines.remove(row+1);
         }
+        setChanged();
         return true;
     }
 
@@ -207,12 +212,14 @@ public class Line extends Observable {
             this.lines.get(row).addAll(this.lines.get(row+1));
             this.lines.remove(row+1);
         }
+        setChanged();
         return true;
     }
 
     /** Set the insert/replace mode **/
     public void setInsertMode(boolean insertMode) {
         this.insertMode = insertMode;
+        setChanged();
     }
 
 }
