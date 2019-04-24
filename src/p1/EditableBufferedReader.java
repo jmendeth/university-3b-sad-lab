@@ -17,7 +17,7 @@ public class EditableBufferedReader extends BufferedReader {
     protected boolean initialized = false;
 
     protected boolean interrupted;
-    protected boolean lineEntered;
+    protected boolean contentsSubmitted;
     protected boolean eofPressed;
     protected boolean submit;
     protected Line model;
@@ -37,7 +37,7 @@ public class EditableBufferedReader extends BufferedReader {
      */
     public void init(int width, int height, int startColumn, int startRow, boolean submit) {
         interrupted = false;
-        lineEntered = false;
+        contentsSubmitted = false;
         eofPressed = false;
         this.submit = submit;
         model = new Line(width, height);
@@ -74,7 +74,7 @@ public class EditableBufferedReader extends BufferedReader {
 
                 view.draw();
                 // buffer = "";
-                while (!lineEntered) {
+                while (!contentsSubmitted) {
                     if (interrupted)
                         throw new InterruptedIOException();
                     processInput();
@@ -312,19 +312,19 @@ public class EditableBufferedReader extends BufferedReader {
             if (submit)
                 model.enterLine();
             else
-                lineEntered = true;
+                contentsSubmitted = true;
         }
     }
 
     protected void handleOneByte(char c) {
         if (c == '\r') { // Enter
             if (submit)
-                lineEntered = true;
+                contentsSubmitted = true;
             else
                 model.enterLine();
         } else if (c == 0x04) { // Control+D
             if (model.getLines().size() == 1 && model.getLines().get(0).isEmpty()) {
-                lineEntered = true;
+                contentsSubmitted = true;
                 eofPressed = true;
             }
         } else if (c == 0x03) { // Control+C
