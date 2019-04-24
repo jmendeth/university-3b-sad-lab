@@ -127,8 +127,8 @@ public class EditableBufferedReader extends BufferedReader {
 
     /**
      * Parsing function. Given a (non-empty) input buffer, parse an input
-     * sequence at the start of the buffer and call the appropriate function to
-     * handle it.
+     * sequence at the start of the buffer and call the appropriate function
+     * on the consumer to handle it.
      *
      * The length of the consumed input sequence must be returned, which is
      * expected to be > 0. If {@code more == true} (more bytes are available)
@@ -137,10 +137,11 @@ public class EditableBufferedReader extends BufferedReader {
      *
      * @param str Terminal input buffer.
      * @param more Indicates if more bytes can be requested.
+     * @param c Consumer for the parsed entity.
      * @return Bytes consumed from the start of the buffer, or -1 if more bytes
      * are needed (only if {@code more == true}).
      */
-    protected int parseInput(final String str, final boolean more) {
+    public static int parseInput(final String str, final boolean more, ParsingConsumer c) {
         // Begin by attempting to parse valid ECMA-48 control sequences in
         // a mostly compliant way.
 
@@ -158,14 +159,14 @@ public class EditableBufferedReader extends BufferedReader {
                 // parse final byte
                 if (i >= str.length() && more) return -1;
                 if (i < str.length() && str.charAt(i) >= 0x40 && str.charAt(i) <= 0x7E) {
-                    handleCSI(str.substring(paramStart, intermediateStart),
+                    c.handleCSI(str.substring(paramStart, intermediateStart),
                             str.substring(intermediateStart, i + 1));
                     return i + 1;
                 }
             } else if (str.charAt(1) == 'N' || str.charAt(1) == 'O') { // SS2 / SS3
                 if (2 >= str.length() && more) return -1;
                 if (2 < str.length()) {
-                    handleSS(str.charAt(1) == 'N' ? 2 : 3, str.charAt(2));
+                    c.handleSS(str.charAt(1) == 'N' ? 2 : 3, str.charAt(2));
                     return 3;
                 }
             } else if (false) { // command string
@@ -174,14 +175,14 @@ public class EditableBufferedReader extends BufferedReader {
 
             // at this point it could be another C1 (0x40-0x5F),
             // an independent function (0x70-0x4E), or a Meta modifier
-            handleTwoByte(str.charAt(1));
+            c.handleTwoByte(str.charAt(1));
             return 2;
 
         }
 
         // -> try to parse C0 and DEL (control characters)
         if (str.charAt(0) < 0x20 || str.charAt(0) == 0x7F) {
-            handleOneByte(str.charAt(0));
+            c.handleOneByte(str.charAt(0));
             return 1;
         }
 
@@ -192,18 +193,48 @@ public class EditableBufferedReader extends BufferedReader {
             if (Character.isHighSurrogate(str.charAt(0))) {
                 if (1 >= str.length() && more) return -1;
                 if (1 < str.length() && Character.isLowSurrogate(str.charAt(1))) {
-                    handleCodepoint(str.codePointAt(0));
+                    c.handleCodepoint(str.codePointAt(0));
                     return 2;
                 }
             }
         } else { // non surrogate
-            handleCodepoint(str.codePointAt(0));
+            c.handleCodepoint(str.codePointAt(0));
             return 1;
         }
 
         // If nothing worked, ignore the byte.
         return 1;
     }
+    
+    /**
+     * This interface defines callbacks that must be implemented
+     * by the consumer to handle parsed entities.
+     */
+    public static interface ParsingConsumer {
+        void handleCSI(String parameters, String function);
+        void handleSS(int set, char c);
+        void handleTwoByte(char c);
+        void handleOneByte(char c);
+        void handleCodepoint(int code);
+    }
+    
+    private final ParsingConsumer consumer = new ParsingConsumer() {
+        public void handleCSI(String parameters, String function) {
+            EditableBufferedReader.this.handleCSI(parameters, function);
+        }
+        public void handleSS(int set, char c) {
+            EditableBufferedReader.this.handleSS(set, c);
+        }
+        public void handleTwoByte(char c) {
+            EditableBufferedReader.this.handleTwoByte(c);
+        }
+        public void handleOneByte(char c) {
+            EditableBufferedReader.this.handleOneByte(c);
+        }
+        public void handleCodepoint(int code) {
+            EditableBufferedReader.this.handleCodepoint(code);
+        }
+    };
 
 
     /**
