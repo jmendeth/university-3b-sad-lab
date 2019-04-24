@@ -17,6 +17,7 @@ public class EditableBufferedReader extends BufferedReader {
     protected boolean interrupted;
     protected boolean lineEntered;
     protected boolean eofPressed;
+    protected boolean submit;
     protected Line model;
     protected Console view;
 
@@ -279,13 +280,19 @@ public class EditableBufferedReader extends BufferedReader {
 
     protected void handleTwoByte(char c) {
         if (c == '\r') {
-            model.enterLine();
+            if (submit)
+                model.enterLine();
+            else
+                lineEntered = true;
         }
     }
 
     protected void handleOneByte(char c) {
         if (c == '\r') { // Enter
-            lineEntered = true;
+            if (submit)
+                lineEntered = true;
+            else
+                model.enterLine();
         } else if (c == 0x04) { // Control+D
             if (model.getLines().size() == 1 && model.getLines().get(0).isEmpty()) {
                 lineEntered = true;
