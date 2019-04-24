@@ -14,6 +14,8 @@ public class EditableBufferedReader extends BufferedReader {
         this.output = new OutputStreamWriter(System.out);
     }
 
+    protected boolean initialized = false;
+
     protected boolean interrupted;
     protected boolean lineEntered;
     protected boolean eofPressed;
@@ -22,8 +24,32 @@ public class EditableBufferedReader extends BufferedReader {
     protected Console view;
 
     /**
-     * Entry method. Puts the terminal in raw mode, starts the line editor, and
-     * blocks until a line is entered by the user.
+     * Initializes state (view, model) to an empty line at the passed coordinates.
+     * This method will be automatically called from {@link readLine} if not
+     * manually called by the user before.
+     *
+     * The four integers describe the editor text area. startColumn and
+     * startRow are 1-based.
+     *
+     * When submit is true, pressing ENTER submits the contents and Alt+ENTER
+     * attempts to enter a linebreak. When submit is false, the behaviour is
+     * reversed.
+     */
+    public void init(int width, int height, int startColumn, int startRow, boolean submit) {
+        interrupted = false;
+        lineEntered = false;
+        eofPressed = false;
+        this.submit = submit;
+        model = new Line(width, height);
+        view = new Console(output, model, startRow, startColumn);
+        model.addObserver(view);
+
+        initialized = true;
+    }
+
+    /**
+     * Entry method. Puts the terminal in raw mode, starts the line editor
+     * in single line mode, and blocks until a line is entered by the user.
      *
      * @return The entered line, or {@code null} if user pressed EOF.
      * @throws EOFException If EOF occurs when reading from terminal.
@@ -34,12 +60,14 @@ public class EditableBufferedReader extends BufferedReader {
     public String readLine() throws EOFException, InterruptedIOException, IOException {
         setRaw();
         try {
-            interrupted = false;
-            lineEntered = false;
-            eofPressed = false;
-            model = new Line(20, 3); // TODO
-            view = new Console(output, model, 4, 1);
-            model.addObserver(view);
+            if (!initialized) {
+                Coordinates cursor = queryCursor();
+                Coordinates bounds = queryWindowSize();
+                int width = bounds.column - (cursor.column - 1);
+                int height = 1;
+                init(width, 1, cursor.column, cursor.row, true);
+            }
+            initialized = false;
 
             view.enableMouse();
             try {
@@ -53,6 +81,7 @@ public class EditableBufferedReader extends BufferedReader {
                     view.draw();
                 }
                 model.moveCaret(model.getHeight(), 0);
+                view.draw();
                 output.write("\r\n");
                 return eofPressed ? null : model.getContents();
 
