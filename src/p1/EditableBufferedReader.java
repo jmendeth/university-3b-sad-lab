@@ -91,7 +91,7 @@ public class EditableBufferedReader extends BufferedReader {
         }
         // Call parsing function until it succeeds
         int consumed;
-        while ((consumed = parseInput(buffer, !bufferEnd)) == -1) {
+        while ((consumed = parseInput(buffer, !bufferEnd, consumer)) == -1) {
             if (bufferEnd)
                 throw new AssertionError("bufferEnd = true but input was NOT consumed");
             // Perform a read with timeout
@@ -205,7 +205,7 @@ public class EditableBufferedReader extends BufferedReader {
         // If nothing worked, ignore the byte.
         return 1;
     }
-    
+
     /**
      * This interface defines callbacks that must be implemented
      * by the consumer to handle parsed entities.
@@ -217,7 +217,7 @@ public class EditableBufferedReader extends BufferedReader {
         void handleOneByte(char c);
         void handleCodepoint(int code);
     }
-    
+
     private final ParsingConsumer consumer = new ParsingConsumer() {
         public void handleCSI(String parameters, String function) {
             EditableBufferedReader.this.handleCSI(parameters, function);
@@ -305,6 +305,79 @@ public class EditableBufferedReader extends BufferedReader {
 
     protected void handleMousePress(int row, int column) {
         model.moveCaret(row - view.getStartRow(), column - view.getStartColumn());
+    }
+
+
+    /**
+     * Terminal query logic.
+     */
+
+    public static class Coordinates {
+        int column;
+        int row;
+        public Coordinates(int column, int row) {
+            this.column = column;
+            this.row = row;
+        }
+    }
+    private Map<String, Object> queries = new HashMap<>();
+    private Integer queryTimeout = 300;
+
+    private final static Pattern CPR_PATTERN =
+            Pattern.compile("^(\\d+);(\\d+)$");
+    private final static Pattern XTERM_SIZE_PATTERN =
+            Pattern.compile("^8;(\\d+);(\\d+)$");
+
+    private final ParsingConsumer queryConsumer = new ParsingConsumer() {
+        public void handleCSI(String parameters, String function) {
+            Matcher m;
+            if (function.equals("R") && (m = CPR_PATTERN.matcher(parameters)).matches()) {
+                int row = Integer.parseInt(m.group(1));
+                int column = Integer.parseInt(m.group(2));
+                queries.put("cursor", new Coordinates(column, row));
+            } else if (function.equals("t") && (m = XTERM_SIZE_PATTERN.matcher(parameters)).matches()) {
+                int rows = Integer.parseInt(m.group(1));
+                int columns = Integer.parseInt(m.group(2));
+                queries.put("windowSize", new Coordinates(columns, rows));
+            }
+        }
+        public void handleSS(int set, char c) {}
+        public void handleTwoByte(char c) {}
+        public void handleOneByte(char c) {}
+        public void handleCodepoint(int code) {}
+    };
+
+    public Coordinates queryCursor() throws IOException {
+        output.write("\u001b[6n");
+        output.flush();
+        return (Coordinates) waitForQuery("cursor");
+    }
+
+    public Coordinates queryWindowSize() throws IOException {
+        output.write("\u001b[18t");
+        output.flush();
+        return (Coordinates) waitForQuery("windowSize");
+    }
+
+    protected Object waitForQuery(String key) throws IOException {
+        queries.remove(key);
+        int bufferOffset = buffer.length();
+        while (true) {
+            int c = (queryTimeout != null) ? readWithTimeout(queryTimeout) : read();
+            if (c < 0)
+                throw new IOException("Didn't receive a reply from the terminal");
+            buffer += String.valueOf((char)c);
+
+            while (bufferOffset < buffer.length()) {
+                int consumed = parseInput(buffer.substring(bufferOffset), true, queryConsumer);
+                if (consumed == -1) break;
+                if (queries.containsKey(key)) {
+                    buffer = buffer.substring(0, bufferOffset);
+                    return queries.get(key);
+                }
+                bufferOffset += consumed;
+            }
+        }
     }
 
 
